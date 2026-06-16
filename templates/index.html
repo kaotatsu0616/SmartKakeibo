@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartKakeibo</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { background: #f5f6f8; padding-bottom: 70px; }
+.card-ui { background: #fff; margin: 10px; padding: 14px; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.tabbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid #eee; }
+.tabbar button { flex: 1; border: none; padding: 10px; background: none; font-size: 20px; }
+.screen { display: none; }
+.active { display: block; }
+.history-row { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.history-row:last-child { border-bottom: none; }
+.badge-cat { font-size: 11px; background: #e8f0fe; color: #3949ab; border-radius: 6px; padding: 2px 7px; }
+.badge-cat-income { background: #e8f5e9; color: #2e7d32; }
+.memo-text { font-size: 12px; color: #888; margin-top: 2px; }
+#receiptPreview img { max-width: 100%; border-radius: 10px; margin-bottom: 8px; }
+.scan-result { background: #f0f7ff; border-radius: 10px; padding: 10px; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+
+<body>
+
+<!-- ========== HOME ========== -->
+<div id="home" class="screen active">
+
+<div class="card-ui text-center" style="background: linear-gradient(135deg,#667eea,#764ba2); color:#fff;">
+  <div class="d-flex justify-content-end" style="margin-bottom:4px;">
+    <a href="/logout" style="color:rgba(255,255,255,.7); font-size:12px; text-decoration:none;">{{ username }} ログアウト →</a>
+  </div>
+  <div style="font-size:12px; opacity:.75; letter-spacing:.5px;">全期間の総資産</div>
+  <div style="font-size:38px; font-weight:700; line-height:1.2;">¥{{ "{:,}".format(all_time_balance) }}</div>
+  <hr style="border-color:rgba(255,255,255,.3); margin:10px 0;">
+  <div style="font-size:12px; opacity:.8; margin-bottom:4px;">
+    {% if selected_month %}{{ selected_month }} の収支{% else %}全期間の収支{% endif %}
+  </div>
+  <div style="font-size:24px; font-weight:600;">
+    {% if balance >= 0 %}+{% endif %}¥{{ "{:,}".format(balance) }}
+  </div>
+  <div style="font-size:12px; opacity:.8; margin-top:3px;">
+    収入 ¥{{ "{:,}".format(income_total) }} &nbsp;／&nbsp; 支出 ¥{{ "{:,}".format(expense_total) }}
+  </div>
+</div>
+
+<div class="card-ui">
+  <form method="GET">
+    <select name="month" class="form-select" onchange="this.form.submit()">
+      <option value="all" {% if not selected_month %}selected{% endif %}>全期間</option>
+      {% for m in months %}
+      <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card-ui">
+  <h6 class="fw-bold">📊 カテゴリ別支出</h6>
+  <canvas id="pieChart"></canvas>
+  {% if expense_total > 0 %}
+  <hr class="my-2">
+  {% for label in chart_labels %}
+  {% set value = chart_values[loop.index0] %}
+  {% if value > 0 %}
+  <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f5f5f5;">
+    <span style="font-size:13px;">{{ label }}</span>
+    <div>
+      <span class="fw-bold" style="font-size:13px;">¥{{ "{:,}".format(value) }}</span>
+      <span class="text-muted ms-2" style="font-size:11px;">{{ "%.0f" | format(value / expense_total * 100) }}%</span>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</div>
+
+<div class="card-ui" style="height:300px;">
+  <h6 class="fw-bold">📊 月別収支</h6>
+  <canvas id="monthlyChart"></canvas>
+</div>
+
+<div class="card-ui">
+  <h6 class="fw-bold">📈 月別残高推移</h6>
+  <canvas id="balanceChart"></canvas>
+</div>
+
+<!-- 支出履歴 -->
+<div class="card-ui">
+  <h6 class="fw-bold">📜 支出履歴</h6>
+  {% for e in expenses %}
+  <div class="history-row">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div style="font-size:13px; color:#888;">{{ e.expense_date }}</div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span class="badge-cat">{{ e.category_name or "未分類" }}</span>
+          <span class="fw-bold">¥{{ "{:,}".format(e.amount) }}</span>
+        </div>
+        {% if e.memo %}<div class="memo-text">{{ e.memo }}</div>{% endif %}
+      </div>
+      <div class="d-flex gap-2 mt-1">
+        <button class="btn btn-sm btn-outline-secondary"
+          data-bs-toggle="modal" data-bs-target="#editExpenseModal"
+          data-id="{{ e.id }}"
+          data-date="{{ e.expense_date }}"
+          data-amount="{{ e.amount }}"
+          data-category="{{ e.category_id }}"
+          data-memo="{{ e.memo or '' }}">編集</button>
+        <a href="/delete/{{ e.id }}" class="btn btn-sm btn-outline-danger"
+          onclick="return confirm('削除しますか？')">削除</a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-muted text-center py-3" style="font-size:13px;">データがありません</div>
+  {% endfor %}
+</div>
+
+<!-- 収入履歴 -->
+<div class="card-ui">
+  <h6 class="fw-bold">📜 収入履歴</h6>
+  {% for i in incomes %}
+  <div class="history-row">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div style="font-size:13px; color:#888;">{{ i.income_date }}</div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span class="badge-cat badge-cat-income">{{ i.category_name or "未分類" }}</span>
+          <span class="fw-bold">¥{{ "{:,}".format(i.amount) }}</span>
+        </div>
+        {% if i.memo %}<div class="memo-text">{{ i.memo }}</div>{% endif %}
+      </div>
+      <div class="d-flex gap-2 mt-1">
+        <button class="btn btn-sm btn-outline-secondary"
+          data-bs-toggle="modal" data-bs-target="#editIncomeModal"
+          data-id="{{ i.id }}"
+          data-date="{{ i.income_date }}"
+          data-amount="{{ i.amount }}"
+          data-category="{{ i.category_id }}"
+          data-memo="{{ i.memo or '' }}">編集</button>
+        <a href="/delete_income/{{ i.id }}" class="btn btn-sm btn-outline-danger"
+          onclick="return confirm('削除しますか？')">削除</a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-muted text-center py-3" style="font-size:13px;">データがありません</div>
+  {% endfor %}
+</div>
+
+</div><!-- /home -->
+
+
+<!-- ========== ADD ========== -->
+<div id="add" class="screen">
+
+<!-- レシート読み取り -->
+<div class="card-ui">
+  <h6 class="fw-bold">📷 レシート読み取り</h6>
+  <input type="file" id="receiptFile" accept="image/*" capture="environment" class="form-control mb-2"
+    onchange="previewReceipt(this)">
+  <div id="receiptPreview" style="display:none;"></div>
+  <button onclick="scanReceipt()" id="scanBtn" class="btn btn-outline-primary w-100 mb-1">
+    📷 読み取って自動入力
+  </button>
+  <div id="scanResult"></div>
+</div>
+
+<!-- 支出追加 -->
+<div class="card-ui">
+  <h6 class="fw-bold">支出を追加</h6>
+  <form method="POST" id="expenseForm">
+    <input type="hidden" name="form_type" value="expense">
+    <label class="form-label small">日付</label>
+    <input type="date" name="expense_date" id="expense_date" class="form-control mb-2">
+    <label class="form-label small">カテゴリ</label>
+    <select name="category" id="expense_category" class="form-select mb-2">
+      <option value="">カテゴリを選択...</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}">{{ c.category_name }}</option>
+      {% endfor %}
+    </select>
+    <label class="form-label small">金額</label>
+    <input type="number" name="amount" id="expense_amount" class="form-control mb-2" placeholder="0">
+    <label class="form-label small">メモ</label>
+    <input type="text" name="memo" id="expense_memo" class="form-control mb-3" placeholder="任意">
+    <button class="btn btn-primary w-100">追加</button>
+  </form>
+</div>
+
+<!-- 収入追加 -->
+<div class="card-ui">
+  <h6 class="fw-bold">収入を追加</h6>
+  <form method="POST">
+    <input type="hidden" name="form_type" value="income">
+    <label class="form-label small">日付</label>
+    <input type="date" name="income_date" class="form-control mb-2">
+    <label class="form-label small">カテゴリ</label>
+    <select name="income_category" class="form-select mb-2">
+      {% for c in income_categories %}
+      <option value="{{ c.id }}">{{ c.category_name }}</option>
+      {% endfor %}
+    </select>
+    <label class="form-label small">金額</label>
+    <input type="number" name="amount" class="form-control mb-2" placeholder="0">
+    <label class="form-label small">メモ</label>
+    <input type="text" name="memo" class="form-control mb-3" placeholder="任意">
+    <button class="btn btn-success w-100">追加</button>
+  </form>
+</div>
+
+</div><!-- /add -->
+
+
+<!-- ========== CATEGORY ========== -->
+<div id="category" class="screen">
+
+<div class="card-ui">
+  <h6 class="fw-bold">支出カテゴリ</h6>
+  <form method="POST" class="mb-3">
+    <input type="hidden" name="form_type" value="category_add">
+    <input name="group_name" class="form-control mb-2" placeholder="グループ名（例：生活費）">
+    <input name="category_name" class="form-control mb-2" placeholder="カテゴリ名">
+    <button class="btn btn-primary w-100">追加</button>
+  </form>
+  <hr>
+  {% for c in categories %}
+  <div class="d-flex justify-content-between align-items-center py-1">
+    <span><small class="text-muted">{{ c.group_name }} &rsaquo;</small> {{ c.category_name }}</span>
+    <a href="/delete_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
+      onclick="return confirm('削除しますか？')">削除</a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card-ui">
+  <h6 class="fw-bold">収入カテゴリ</h6>
+  <form method="POST" class="mb-3">
+    <input type="hidden" name="form_type" value="income_category_add">
+    <input name="category_name" class="form-control mb-2" placeholder="カテゴリ名">
+    <button class="btn btn-success w-100">追加</button>
+  </form>
+  <hr>
+  {% for c in income_categories %}
+  <div class="d-flex justify-content-between align-items-center py-1">
+    <span>{{ c.category_name }}</span>
+    <a href="/delete_income_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
+      onclick="return confirm('削除しますか？')">削除</a>
+  </div>
+  {% endfor %}
+</div>
+
+</div><!-- /category -->
+
+
+<!-- ========== タブバー ========== -->
+<div class="tabbar">
+  <button onclick="show('home')">🏠</button>
+  <button onclick="show('add')">➕</button>
+  <button onclick="show('category')">📂</button>
+</div>
+
+
+<!-- ========== 支出編集モーダル ========== -->
+<div class="modal fade" id="editExpenseModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">支出を編集</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editExpenseForm" method="POST">
+        <div class="modal-body">
+          <label class="form-label small">日付</label>
+          <input type="date" id="ee_date" name="expense_date" class="form-control mb-2">
+          <label class="form-label small">カテゴリ</label>
+          <select id="ee_cat" name="category" class="form-select mb-2">
+            {% for c in categories %}
+            <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+          </select>
+          <label class="form-label small">金額</label>
+          <input type="number" id="ee_amount" name="amount" class="form-control mb-2">
+          <label class="form-label small">メモ</label>
+          <input type="text" id="ee_memo" name="memo" class="form-control">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 収入編集モーダル ========== -->
+<div class="modal fade" id="editIncomeModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">収入を編集</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editIncomeForm" method="POST">
+        <div class="modal-body">
+          <label class="form-label small">日付</label>
+          <input type="date" id="ei_date" name="income_date" class="form-control mb-2">
+          <label class="form-label small">カテゴリ</label>
+          <select id="ei_cat" name="income_category" class="form-select mb-2">
+            {% for c in income_categories %}
+            <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+          </select>
+          <label class="form-label small">金額</label>
+          <input type="number" id="ei_amount" name="amount" class="form-control mb-2">
+          <label class="form-label small">メモ</label>
+          <input type="text" id="ei_memo" name="memo" class="form-control">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn btn-success">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<!-- ========== JavaScript ========== -->
+<script>
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// 編集モーダル（支出）
+document.getElementById('editExpenseModal').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('editExpenseForm').action = `/edit_expense/${btn.dataset.id}`;
+  document.getElementById('ee_date').value    = btn.dataset.date;
+  document.getElementById('ee_amount').value  = btn.dataset.amount;
+  document.getElementById('ee_cat').value     = btn.dataset.category;
+  document.getElementById('ee_memo').value    = btn.dataset.memo;
+});
+
+// 編集モーダル（収入）
+document.getElementById('editIncomeModal').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('editIncomeForm').action = `/edit_income/${btn.dataset.id}`;
+  document.getElementById('ei_date').value    = btn.dataset.date;
+  document.getElementById('ei_amount').value  = btn.dataset.amount;
+  document.getElementById('ei_cat').value     = btn.dataset.category;
+  document.getElementById('ei_memo').value    = btn.dataset.memo;
+});
+
+// レシートプレビュー
+function previewReceipt(input) {
+  const preview = document.getElementById('receiptPreview');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.innerHTML = `<img src="${e.target.result}">`;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+// レシートOCR
+async function scanReceipt() {
+  const file = document.getElementById('receiptFile').files[0];
+  if (!file) { alert('画像を選択してください'); return; }
+
+  const btn = document.getElementById('scanBtn');
+  btn.textContent = '⏳ 読み取り中（30秒ほどかかります）...';
+  btn.disabled = true;
+  document.getElementById('scanResult').innerHTML = '';
+
+  const formData = new FormData();
+  formData.append('receipt', file);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000); // 2分タイムアウト
+
+  try {
+    const resp = await fetch('/upload_receipt', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    const data = await resp.json();
+
+    if (data.error) {
+      document.getElementById('scanResult').innerHTML =
+        `<div class="alert alert-danger mt-2">エラー: ${data.error}</div>`;
+      return;
+    }
+
+    if (data.date)               document.getElementById('expense_date').value     = data.date;
+    if (data.amount)             document.getElementById('expense_amount').value   = data.amount;
+    let catName = null;
+    if (data.suggested_category) {
+      document.getElementById('expense_category').value = data.suggested_category;
+      var opt = document.querySelector('#expense_category option[value="' + data.suggested_category + '"]');
+      catName = opt ? opt.textContent : (data.detected_type || null);
+    } else if (data.detected_type) {
+      catName = data.detected_type + '（カテゴリ未登録）';
+    }
+
+    const rawHtml = data.lines && data.lines.length
+      ? `<details class="mt-2"><summary style="font-size:11px;color:#888;">OCR生テキスト（タップで表示）</summary>
+          <pre style="font-size:10px;white-space:pre-wrap;background:#f8f8f8;padding:6px;border-radius:6px;">${data.lines.join('\n')}</pre>
+         </details>`
+      : '';
+    document.getElementById('scanResult').innerHTML = `
+      <div class="scan-result">
+        <div>📅 日付: <strong>${data.date || '検出できませんでした'}</strong></div>
+        <div>💰 金額: <strong>${data.amount ? '¥' + data.amount.toLocaleString() : '検出できませんでした'}</strong></div>
+        <div>📂 カテゴリ: <strong>${catName || '判定できませんでした'}</strong></div>
+        <div class="text-muted mt-1" style="font-size:11px;">下のフォームで確認・修正してから追加してください</div>
+        ${rawHtml}
+      </div>`;
+  } catch(err) {
+    clearTimeout(timer);
+    const msg = err.name === 'AbortError'
+      ? 'タイムアウト: 処理が完了しませんでした。もう一度お試しください。'
+      : `通信エラー: ${err.message}`;
+    document.getElementById('scanResult').innerHTML =
+      `<div class="alert alert-danger mt-2">${msg}</div>`;
+  } finally {
+    btn.textContent = '📷 読み取って自動入力';
+    btn.disabled = false;
+  }
+}
+</script>
+
+<script id="kd" type="application/json">
+{
+  "pieLabels":      {{ chart_labels   | tojson }},
+  "pieValues":      {{ chart_values   | tojson }},
+  "monthlyLabels":  {{ monthly_labels | tojson }},
+  "monthlyIncome":  {{ monthly_income | tojson }},
+  "monthlyExpense": {{ monthly_expense | tojson }},
+  "balanceLabels":  {{ balance_labels | tojson }},
+  "balanceValues":  {{ balance_values | tojson }}
+}
+</script>
+<script>
+const kd = JSON.parse(document.getElementById('kd').textContent);
+
+// 円グラフ
+if (document.getElementById('pieChart') && kd.pieLabels.length) {
+  new Chart(document.getElementById('pieChart'), {
+    type: 'pie',
+    data: {
+      labels: kd.pieLabels,
+      datasets: [{
+        data: kd.pieValues,
+        backgroundColor: [
+          '#667eea','#764ba2','#f093fb','#f5576c','#4facfe',
+          '#43e97b','#fa709a','#fee140','#30cfd0','#a18cd1'
+        ]
+      }]
+    },
+    options: { plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+// 月別棒グラフ
+document.addEventListener('DOMContentLoaded', function() {
+  const canvas = document.getElementById('monthlyChart');
+  if (!canvas) return;
+  if (!kd.monthlyLabels.length) return;
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: kd.monthlyLabels,
+      datasets: [
+        { label: '収入', data: kd.monthlyIncome,  backgroundColor: 'rgba(67,233,123,.6)' },
+        { label: '支出', data: kd.monthlyExpense, backgroundColor: 'rgba(245,87,108,.6)' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+});
+
+// 残高折れ線
+if (document.getElementById('balanceChart') && kd.balanceLabels.length) {
+  new Chart(document.getElementById('balanceChart'), {
+    type: 'line',
+    data: {
+      labels: kd.balanceLabels,
+      datasets: [{
+        label: '残高',
+        data: kd.balanceValues,
+        borderColor: '#667eea',
+        backgroundColor: 'rgba(102,126,234,.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3
+      }]
+    }
+  });
+}
+</script>
+
+</body>
+</html>
