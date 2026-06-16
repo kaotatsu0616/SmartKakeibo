@@ -76,11 +76,11 @@ def init_db():
     )
     """)
 
-    # categories/income_categories を user_id 対応に再作成（UNIQUE制約を除去）
-    cur.execute("PRAGMA table_info(categories)")
-    cat_cols = [r['name'] for r in cur.fetchall()]
-    if 'user_id' not in cat_cols:
-        cur.execute("ALTER TABLE categories RENAME TO categories_old")
+    # categories テーブル
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='categories'")
+    categories_exists = cur.fetchone() is not None
+
+    if not categories_exists:
         cur.execute("""
         CREATE TABLE categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,28 +89,33 @@ def init_db():
             user_id INTEGER DEFAULT 1
         )
         """)
-        try:
-            cur.execute("""
-            INSERT INTO categories (id, group_name, category_name, user_id)
-            SELECT id, group_name, category_name, 1 FROM categories_old
-            """)
-            cur.execute("DROP TABLE categories_old")
-        except Exception:
-            pass
     else:
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_name TEXT,
-            category_name TEXT,
-            user_id INTEGER DEFAULT 1
-        )
-        """)
+        cur.execute("PRAGMA table_info(categories)")
+        cat_cols = [r['name'] for r in cur.fetchall()]
+        if 'user_id' not in cat_cols:
+            cur.execute("ALTER TABLE categories RENAME TO categories_old")
+            cur.execute("""
+            CREATE TABLE categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_name TEXT,
+                category_name TEXT,
+                user_id INTEGER DEFAULT 1
+            )
+            """)
+            try:
+                cur.execute("""
+                INSERT INTO categories (id, group_name, category_name, user_id)
+                SELECT id, group_name, category_name, 1 FROM categories_old
+                """)
+                cur.execute("DROP TABLE categories_old")
+            except Exception:
+                pass
 
-    cur.execute("PRAGMA table_info(income_categories)")
-    inc_cat_cols = [r['name'] for r in cur.fetchall()]
-    if 'user_id' not in inc_cat_cols:
-        cur.execute("ALTER TABLE income_categories RENAME TO income_categories_old")
+    # income_categories テーブル
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='income_categories'")
+    income_categories_exists = cur.fetchone() is not None
+
+    if not income_categories_exists:
         cur.execute("""
         CREATE TABLE income_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,22 +123,26 @@ def init_db():
             user_id INTEGER DEFAULT 1
         )
         """)
-        try:
-            cur.execute("""
-            INSERT INTO income_categories (id, category_name, user_id)
-            SELECT id, category_name, 1 FROM income_categories_old
-            """)
-            cur.execute("DROP TABLE income_categories_old")
-        except Exception:
-            pass
     else:
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS income_categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_name TEXT,
-            user_id INTEGER DEFAULT 1
-        )
-        """)
+        cur.execute("PRAGMA table_info(income_categories)")
+        inc_cat_cols = [r['name'] for r in cur.fetchall()]
+        if 'user_id' not in inc_cat_cols:
+            cur.execute("ALTER TABLE income_categories RENAME TO income_categories_old")
+            cur.execute("""
+            CREATE TABLE income_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_name TEXT,
+                user_id INTEGER DEFAULT 1
+            )
+            """)
+            try:
+                cur.execute("""
+                INSERT INTO income_categories (id, category_name, user_id)
+                SELECT id, category_name, 1 FROM income_categories_old
+                """)
+                cur.execute("DROP TABLE income_categories_old")
+            except Exception:
+                pass
 
     # 既存テーブルへのカラム追加（マイグレーション）
     for sql in [
