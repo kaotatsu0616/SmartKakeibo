@@ -23,8 +23,6 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 .badge-cat { font-size: 11px; background: #e8f0fe; color: #3949ab; border-radius: 6px; padding: 2px 7px; }
 .badge-cat-income { background: #e8f5e9; color: #2e7d32; }
 .memo-text { font-size: 12px; color: #888; margin-top: 2px; }
-#receiptPreview img { max-width: 100%; border-radius: 10px; margin-bottom: 8px; }
-.scan-result { background: #f0f7ff; border-radius: 10px; padding: 10px; font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 
@@ -161,18 +159,6 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 
 <!-- ========== ADD ========== -->
 <div id="add" class="screen">
-
-<!-- レシート読み取り -->
-<div class="card-ui">
-  <h6 class="fw-bold">📷 レシート読み取り</h6>
-  <input type="file" id="receiptFile" accept="image/*" capture="environment" class="form-control mb-2"
-    onchange="previewReceipt(this)">
-  <div id="receiptPreview" style="display:none;"></div>
-  <button onclick="scanReceipt()" id="scanBtn" class="btn btn-outline-primary w-100 mb-1">
-    📷 読み取って自動入力
-  </button>
-  <div id="scanResult"></div>
-</div>
 
 <!-- 支出追加 -->
 <div class="card-ui">
@@ -361,86 +347,6 @@ document.getElementById('editIncomeModal').addEventListener('show.bs.modal', fun
   document.getElementById('ei_memo').value    = btn.dataset.memo;
 });
 
-// レシートプレビュー
-function previewReceipt(input) {
-  const preview = document.getElementById('receiptPreview');
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      preview.innerHTML = `<img src="${e.target.result}">`;
-      preview.style.display = 'block';
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-// レシートOCR
-async function scanReceipt() {
-  const file = document.getElementById('receiptFile').files[0];
-  if (!file) { alert('画像を選択してください'); return; }
-
-  const btn = document.getElementById('scanBtn');
-  btn.textContent = '⏳ 読み取り中（30秒ほどかかります）...';
-  btn.disabled = true;
-  document.getElementById('scanResult').innerHTML = '';
-
-  const formData = new FormData();
-  formData.append('receipt', file);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120000); // 2分タイムアウト
-
-  try {
-    const resp = await fetch('/upload_receipt', {
-      method: 'POST',
-      body: formData,
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    const data = await resp.json();
-
-    if (data.error) {
-      document.getElementById('scanResult').innerHTML =
-        `<div class="alert alert-danger mt-2">エラー: ${data.error}</div>`;
-      return;
-    }
-
-    if (data.date)               document.getElementById('expense_date').value     = data.date;
-    if (data.amount)             document.getElementById('expense_amount').value   = data.amount;
-    let catName = null;
-    if (data.suggested_category) {
-      document.getElementById('expense_category').value = data.suggested_category;
-      var opt = document.querySelector('#expense_category option[value="' + data.suggested_category + '"]');
-      catName = opt ? opt.textContent : (data.detected_type || null);
-    } else if (data.detected_type) {
-      catName = data.detected_type + '（カテゴリ未登録）';
-    }
-
-    const rawHtml = data.lines && data.lines.length
-      ? `<details class="mt-2"><summary style="font-size:11px;color:#888;">OCR生テキスト（タップで表示）</summary>
-          <pre style="font-size:10px;white-space:pre-wrap;background:#f8f8f8;padding:6px;border-radius:6px;">${data.lines.join('\n')}</pre>
-         </details>`
-      : '';
-    document.getElementById('scanResult').innerHTML = `
-      <div class="scan-result">
-        <div>📅 日付: <strong>${data.date || '検出できませんでした'}</strong></div>
-        <div>💰 金額: <strong>${data.amount ? '¥' + data.amount.toLocaleString() : '検出できませんでした'}</strong></div>
-        <div>📂 カテゴリ: <strong>${catName || '判定できませんでした'}</strong></div>
-        <div class="text-muted mt-1" style="font-size:11px;">下のフォームで確認・修正してから追加してください</div>
-        ${rawHtml}
-      </div>`;
-  } catch(err) {
-    clearTimeout(timer);
-    const msg = err.name === 'AbortError'
-      ? 'タイムアウト: 処理が完了しませんでした。もう一度お試しください。'
-      : `通信エラー: ${err.message}`;
-    document.getElementById('scanResult').innerHTML =
-      `<div class="alert alert-danger mt-2">${msg}</div>`;
-  } finally {
-    btn.textContent = '📷 読み取って自動入力';
-    btn.disabled = false;
-  }
-}
 </script>
 
 <script id="kd" type="application/json">

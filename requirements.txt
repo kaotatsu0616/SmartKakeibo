@@ -1,4 +1,3 @@
 ﻿flask
-easyocr
-pillow
 werkzeug
+pillow
