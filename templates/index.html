@@ -23,6 +23,11 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 .badge-cat { font-size: 11px; background: #e8f0fe; color: #3949ab; border-radius: 6px; padding: 2px 7px; }
 .badge-cat-income { background: #e8f5e9; color: #2e7d32; }
 .memo-text { font-size: 12px; color: #888; margin-top: 2px; }
+.calc-btn { border: none; padding: 18px 0; font-size: 20px; cursor: pointer; width: 100%; transition: opacity .1s; background: #fff; }
+.calc-btn:active { opacity: .6; }
+.calc-fn { background: #f0f0f0; color: #555; }
+.calc-op { background: #f0ecff; color: #667eea; font-weight: 700; }
+.calc-eq { background: #667eea; color: #fff; font-weight: 700; }
 </style>
 </head>
 
@@ -175,7 +180,10 @@ body { background: #f5f6f8; padding-bottom: 70px; }
       {% endfor %}
     </select>
     <label class="form-label small">金額</label>
-    <input type="number" name="amount" id="expense_amount" class="form-control mb-2" placeholder="0">
+    <div class="input-group mb-2">
+      <input type="number" name="amount" id="expense_amount" class="form-control" placeholder="0">
+      <button type="button" class="btn btn-outline-secondary" onclick="openCalc('expense_amount')">🧮</button>
+    </div>
     <label class="form-label small">メモ</label>
     <input type="text" name="memo" id="expense_memo" class="form-control mb-3" placeholder="任意">
     <button class="btn btn-primary w-100">追加</button>
@@ -196,7 +204,10 @@ body { background: #f5f6f8; padding-bottom: 70px; }
       {% endfor %}
     </select>
     <label class="form-label small">金額</label>
-    <input type="number" name="amount" class="form-control mb-2" placeholder="0">
+    <div class="input-group mb-2">
+      <input type="number" name="amount" id="income_amount" class="form-control" placeholder="0">
+      <button type="button" class="btn btn-outline-secondary" onclick="openCalc('income_amount')">🧮</button>
+    </div>
     <label class="form-label small">メモ</label>
     <input type="text" name="memo" class="form-control mb-3" placeholder="任意">
     <button class="btn btn-success w-100">追加</button>
@@ -255,6 +266,40 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 </div>
 
 
+<!-- ========== 電卓モーダル ========== -->
+<div class="modal fade" id="calcModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:300px; margin:auto;">
+    <div class="modal-content" style="border-radius:16px; overflow:hidden; border:none;">
+      <div style="background:#1c1c2e; padding:16px 16px 8px;">
+        <div id="calcExpr" style="color:#888; font-size:13px; text-align:right; min-height:18px;"></div>
+        <div id="calcDisplay" style="color:#fff; font-size:36px; font-weight:300; text-align:right; word-break:break-all;">0</div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:#e0e0e0;">
+        <button class="calc-btn calc-fn" onclick="calcClear()">C</button>
+        <button class="calc-btn calc-fn" onclick="calcBackspace()">⌫</button>
+        <button class="calc-btn calc-fn" onclick="calcInput('%')">%</button>
+        <button class="calc-btn calc-op" onclick="calcInput('÷')">÷</button>
+        <button class="calc-btn" onclick="calcInput('7')">7</button>
+        <button class="calc-btn" onclick="calcInput('8')">8</button>
+        <button class="calc-btn" onclick="calcInput('9')">9</button>
+        <button class="calc-btn calc-op" onclick="calcInput('×')">×</button>
+        <button class="calc-btn" onclick="calcInput('4')">4</button>
+        <button class="calc-btn" onclick="calcInput('5')">5</button>
+        <button class="calc-btn" onclick="calcInput('6')">6</button>
+        <button class="calc-btn calc-op" onclick="calcInput('-')">−</button>
+        <button class="calc-btn" onclick="calcInput('1')">1</button>
+        <button class="calc-btn" onclick="calcInput('2')">2</button>
+        <button class="calc-btn" onclick="calcInput('3')">3</button>
+        <button class="calc-btn calc-op" onclick="calcInput('+')">+</button>
+        <button class="calc-btn" style="grid-column:span 2;" onclick="calcInput('0')">0</button>
+        <button class="calc-btn" onclick="calcInput('.')">.</button>
+        <button class="calc-btn calc-eq" onclick="calcEquals()">=</button>
+      </div>
+      <button class="btn w-100 fw-bold" style="background:#667eea;color:#fff;border-radius:0;padding:14px;font-size:16px;" onclick="calcConfirm()">確定</button>
+    </div>
+  </div>
+</div>
+
 <!-- ========== 支出編集モーダル ========== -->
 <div class="modal fade" id="editExpenseModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -274,7 +319,10 @@ body { background: #f5f6f8; padding-bottom: 70px; }
             {% endfor %}
           </select>
           <label class="form-label small">金額</label>
-          <input type="number" id="ee_amount" name="amount" class="form-control mb-2">
+          <div class="input-group mb-2">
+            <input type="number" id="ee_amount" name="amount" class="form-control">
+            <button type="button" class="btn btn-outline-secondary" onclick="openCalc('ee_amount')">🧮</button>
+          </div>
           <label class="form-label small">メモ</label>
           <input type="text" id="ee_memo" name="memo" class="form-control">
         </div>
@@ -306,7 +354,10 @@ body { background: #f5f6f8; padding-bottom: 70px; }
             {% endfor %}
           </select>
           <label class="form-label small">金額</label>
-          <input type="number" id="ei_amount" name="amount" class="form-control mb-2">
+          <div class="input-group mb-2">
+            <input type="number" id="ei_amount" name="amount" class="form-control">
+            <button type="button" class="btn btn-outline-secondary" onclick="openCalc('ei_amount')">🧮</button>
+          </div>
           <label class="form-label small">メモ</label>
           <input type="text" id="ei_memo" name="memo" class="form-control">
         </div>
@@ -422,6 +473,67 @@ if (document.getElementById('balanceChart') && kd.balanceLabels.length) {
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/static/sw.js');
+}
+
+// 電卓
+var calcTargetId = null;
+var calcExpr = '';
+var calcJustEq = false;
+
+function openCalc(inputId) {
+  calcTargetId = inputId;
+  var val = document.getElementById(inputId).value;
+  calcExpr = val ? String(parseFloat(val)) : '';
+  calcJustEq = false;
+  updateCalcDisplay();
+  new bootstrap.Modal(document.getElementById('calcModal')).show();
+}
+
+function updateCalcDisplay() {
+  var parts = calcExpr.split(/[+\-×÷%]/);
+  var last = parts[parts.length - 1];
+  document.getElementById('calcDisplay').textContent = last !== '' ? last : (calcExpr || '0');
+  var expr = calcExpr.replace(/([+\-×÷%])[+\-×÷%]+$/, '$1');
+  document.getElementById('calcExpr').textContent = (calcExpr !== last) ? calcExpr : '';
+}
+
+function calcInput(v) {
+  if (calcJustEq && '0123456789.'.indexOf(v) >= 0) { calcExpr = ''; calcJustEq = false; }
+  if (calcJustEq) calcJustEq = false;
+  if ('+-×÷%'.indexOf(v) >= 0 && calcExpr && '+-×÷%'.indexOf(calcExpr.slice(-1)) >= 0) {
+    calcExpr = calcExpr.slice(0, -1);
+  }
+  if (!calcExpr && '×÷+%'.indexOf(v) >= 0) return;
+  calcExpr += v;
+  updateCalcDisplay();
+}
+
+function calcClear() { calcExpr = ''; calcJustEq = false; updateCalcDisplay(); }
+
+function calcBackspace() { calcExpr = calcExpr.slice(0, -1); updateCalcDisplay(); }
+
+function calcEquals() {
+  if (!calcExpr) return;
+  try {
+    var e = calcExpr.replace(/×/g,'*').replace(/÷/g,'/').replace(/%/g,'/100');
+    var r = Function('return (' + e + ')')();
+    var rounded = Math.round(r * 100) / 100;
+    document.getElementById('calcExpr').textContent = calcExpr + ' =';
+    document.getElementById('calcDisplay').textContent = rounded;
+    calcExpr = String(rounded);
+    calcJustEq = true;
+  } catch(e) {}
+}
+
+function calcConfirm() {
+  if (calcTargetId && calcExpr) {
+    try {
+      var e = calcExpr.replace(/×/g,'*').replace(/÷/g,'/').replace(/%/g,'/100');
+      var r = Function('return (' + e + ')')();
+      document.getElementById(calcTargetId).value = Math.round(r);
+    } catch(e) {}
+  }
+  bootstrap.Modal.getInstance(document.getElementById('calcModal')).hide();
 }
 </script>
 </body>
