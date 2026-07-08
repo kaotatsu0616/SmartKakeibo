@@ -464,14 +464,31 @@ if (document.getElementById('pieChart') && kd.pieLabels.length) {
       plugins: {
         legend: { position: 'bottom' },
         datalabels: {
-          color: '#fff',
-          font: { weight: 'bold', size: 11 },
-          textShadowBlur: 4,
+          anchor: function(ctx) {
+            var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            return (ctx.dataset.data[ctx.dataIndex] / total * 100) < 5 ? 'end' : 'center';
+          },
+          align: function(ctx) {
+            var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            return (ctx.dataset.data[ctx.dataIndex] / total * 100) < 5 ? 'end' : 'center';
+          },
+          offset: function(ctx) {
+            var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            return (ctx.dataset.data[ctx.dataIndex] / total * 100) < 5 ? 8 : 0;
+          },
+          color: function(ctx) {
+            var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            return (ctx.dataset.data[ctx.dataIndex] / total * 100) < 5 ? '#444' : '#fff';
+          },
+          font: { weight: 'bold', size: 10 },
+          textShadowBlur: function(ctx) {
+            var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            return (ctx.dataset.data[ctx.dataIndex] / total * 100) < 5 ? 0 : 4;
+          },
           textShadowColor: 'rgba(0,0,0,0.3)',
           formatter: function(value, ctx) {
             var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
             var pct = Math.round(value / total * 100);
-            if (pct < 5) return '';
             return ctx.chart.data.labels[ctx.dataIndex] + '\n' + pct + '%';
           }
         }
