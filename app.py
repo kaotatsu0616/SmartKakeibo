@@ -351,6 +351,11 @@ def home():
         ORDER BY e.expense_date DESC, e.id DESC
     """, params_e)
     expenses = cur.fetchall()
+    expenses_for_json = [
+        {'date': e['expense_date'], 'amount': safe_int(e['amount']),
+         'memo': e['memo'] or '', 'category': e['category_name'] or '未分類'}
+        for e in expenses
+    ]
 
     where_i = "WHERE i.user_id = ?"
     params_i = [uid]
@@ -437,6 +442,7 @@ def home():
     return render_template(
         "index.html",
         expenses=expenses,
+        expenses_for_json=expenses_for_json,
         incomes=incomes,
         categories=categories,
         group_names=group_names,

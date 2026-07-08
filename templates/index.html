@@ -73,11 +73,12 @@ body { background: #f5f6f8; padding-bottom: 70px; }
   {% for label in chart_labels %}
   {% set value = chart_values[loop.index0] %}
   {% if value > 0 %}
-  <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f5f5f5;">
+  <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f5f5f5; cursor:pointer;" onclick="showCategoryDetail(this.dataset.cat)" data-cat="{{ label }}">
     <span style="font-size:13px;">{{ label }}</span>
     <div>
       <span class="fw-bold" style="font-size:13px;">¥{{ "{:,}".format(value) }}</span>
       <span class="text-muted ms-2" style="font-size:11px;">{{ "%.0f" | format(value / expense_total * 100) }}%</span>
+      <span class="text-muted ms-1" style="font-size:13px;">›</span>
     </div>
   </div>
   {% endif %}
@@ -275,6 +276,25 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 </div>
 
 
+<!-- ========== カテゴリ詳細モーダル ========== -->
+<div class="modal fade" id="categoryDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="catDetailTitle"></h5>
+          <div id="catDetailPeriod" style="font-size:12px; color:#888;"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" id="catDetailBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ========== 電卓モーダル ========== -->
 <div class="modal fade" id="calcModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:300px; margin:auto;">
@@ -417,7 +437,8 @@ document.getElementById('editIncomeModal').addEventListener('show.bs.modal', fun
   "monthlyIncome":  {{ monthly_income | tojson }},
   "monthlyExpense": {{ monthly_expense | tojson }},
   "balanceLabels":  {{ balance_labels | tojson }},
-  "balanceValues":  {{ balance_values | tojson }}
+  "balanceValues":  {{ balance_values | tojson }},
+  "expenseDetails": {{ expenses_for_json | tojson }}
 }
 </script>
 <script>
@@ -543,6 +564,27 @@ function calcConfirm() {
     } catch(e) {}
   }
   bootstrap.Modal.getInstance(document.getElementById('calcModal')).hide();
+}
+
+function showCategoryDetail(cat) {
+  var list = kd.expenseDetails.filter(function(e) { return e.category === cat; });
+  list.sort(function(a, b) { return b.date.localeCompare(a.date); });
+  var total = list.reduce(function(s, e) { return s + e.amount; }, 0);
+  document.getElementById('catDetailTitle').textContent = cat + '　合計 ¥' + total.toLocaleString();
+  var period = document.querySelector('select[name="month"]');
+  document.getElementById('catDetailPeriod').textContent = period ? period.options[period.selectedIndex].text : '';
+  var html = '';
+  list.forEach(function(e) {
+    html += '<div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-bottom:1px solid #f0f0f0;">';
+    html += '<div><div style="font-size:13px;color:#888;">' + e.date + '</div>';
+    if (e.memo) html += '<div style="font-size:12px;color:#aaa;">' + e.memo + '</div>';
+    html += '</div>';
+    html += '<span class="fw-bold">¥' + e.amount.toLocaleString() + '</span>';
+    html += '</div>';
+  });
+  if (!html) html = '<div class="text-center text-muted p-3" style="font-size:13px;">データがありません</div>';
+  document.getElementById('catDetailBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('categoryDetailModal')).show();
 }
 
 function handleGroupSelect(sel) {
