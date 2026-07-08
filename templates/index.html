@@ -222,9 +222,18 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 
 <div class="card-ui">
   <h6 class="fw-bold">支出カテゴリ</h6>
-  <form method="POST" class="mb-3">
+  <form method="POST" class="mb-3" onsubmit="prepareGroupName()">
     <input type="hidden" name="form_type" value="category_add">
-    <input name="group_name" class="form-control mb-2" placeholder="グループ名（例：生活費）">
+    <label class="form-label small">グループ名</label>
+    <select id="group_select" class="form-select mb-2" onchange="handleGroupSelect(this)">
+      {% for g in group_names %}
+      <option value="{{ g }}">{{ g }}</option>
+      {% endfor %}
+      <option value="__new__">＋ 新しいグループを追加...</option>
+    </select>
+    <input type="text" id="group_name_new" class="form-control mb-2" placeholder="新しいグループ名（例：娯楽）" style="display:none;">
+    <input type="hidden" id="group_name_hidden" name="group_name" value="{{ group_names[0] if group_names else '' }}">
+    <label class="form-label small">カテゴリ名</label>
     <input name="category_name" class="form-control mb-2" placeholder="カテゴリ名">
     <button class="btn btn-primary w-100">追加</button>
   </form>
@@ -534,6 +543,28 @@ function calcConfirm() {
     } catch(e) {}
   }
   bootstrap.Modal.getInstance(document.getElementById('calcModal')).hide();
+}
+
+function handleGroupSelect(sel) {
+  var newInput = document.getElementById('group_name_new');
+  var hidden = document.getElementById('group_name_hidden');
+  if (sel.value === '__new__') {
+    newInput.style.display = '';
+    newInput.focus();
+    hidden.value = '';
+  } else {
+    newInput.style.display = 'none';
+    hidden.value = sel.value;
+  }
+}
+
+function prepareGroupName() {
+  var sel = document.getElementById('group_select');
+  if (!sel) return;
+  if (sel.value === '__new__') {
+    document.getElementById('group_name_hidden').value =
+      document.getElementById('group_name_new').value.trim();
+  }
 }
 </script>
 </body>
