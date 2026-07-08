@@ -462,7 +462,7 @@ if (document.getElementById('pieChart') && kd.pieLabels.length) {
     },
     options: {
       plugins: {
-        legend: { position: 'bottom' },
+        legend: { display: false },
         datalabels: {
           anchor: function(ctx) {
             var total = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
