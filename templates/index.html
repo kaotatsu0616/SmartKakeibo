@@ -29,6 +29,8 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 .calc-fn { background: #f0f0f0; color: #555; }
 .calc-op { background: #f0ecff; color: #667eea; font-weight: 700; }
 .calc-eq { background: #667eea; color: #fff; font-weight: 700; }
+#calcModal { z-index: 1075; }
+.modal-backdrop.calc-backdrop { z-index: 1074; }
 </style>
 </head>
 
@@ -67,24 +69,16 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 </div>
 
 <div class="card-ui">
-  <h6 class="fw-bold">📊 カテゴリ別支出</h6>
-  <canvas id="pieChart"></canvas>
-  {% if expense_total > 0 %}
-  <hr class="my-2">
-  {% for label in chart_labels %}
-  {% set value = chart_values[loop.index0] %}
-  {% if value > 0 %}
-  <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f5f5f5; cursor:pointer;" onclick="showCategoryDetail(this.dataset.cat)" data-cat="{{ label }}">
-    <span style="font-size:13px;">{{ label }}</span>
-    <div>
-      <span class="fw-bold" style="font-size:13px;">¥{{ "{:,}".format(value) }}</span>
-      <span class="text-muted ms-2" style="font-size:11px;">{{ "%.0f" | format(value / expense_total * 100) }}%</span>
-      <span class="text-muted ms-1" style="font-size:13px;">›</span>
+  <div class="d-flex justify-content-between align-items-center mb-1">
+    <h6 class="fw-bold mb-0" id="pieChartTitle">📊 カテゴリ別支出</h6>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-primary active" id="pieModeCategory" onclick="setPieMode('category')">カテゴリ</button>
+      <button type="button" class="btn btn-outline-primary" id="pieModeGroup" onclick="setPieMode('group')">グループ</button>
     </div>
   </div>
-  {% endif %}
-  {% endfor %}
-  {% endif %}
+  <canvas id="pieChart"></canvas>
+  <hr class="my-2" id="pieLegendDivider" style="display:none;">
+  <div id="pieLegend"></div>
 </div>
 
 <div class="card-ui" style="height:300px;">
@@ -434,6 +428,8 @@ document.getElementById('editIncomeModal').addEventListener('show.bs.modal', fun
 {
   "pieLabels":      {{ chart_labels   | tojson }},
   "pieValues":      {{ chart_values   | tojson }},
+  "pieGroupLabels": {{ chart_group_labels | tojson }},
+  "pieGroupValues": {{ chart_group_values | tojson }},
   "monthlyLabels":  {{ monthly_labels | tojson }},
   "monthlyIncome":  {{ monthly_income | tojson }},
   "monthlyExpense": {{ monthly_expense | tojson }},
@@ -446,14 +442,29 @@ document.getElementById('editIncomeModal').addEventListener('show.bs.modal', fun
 const kd = JSON.parse(document.getElementById('kd').textContent);
 
 // 円グラフ
-if (document.getElementById('pieChart') && kd.pieLabels.length) {
-  new Chart(document.getElementById('pieChart'), {
+var pieChartInstance = null;
+
+function getPieData(mode) {
+  return mode === 'group'
+    ? { labels: kd.pieGroupLabels, values: kd.pieGroupValues }
+    : { labels: kd.pieLabels, values: kd.pieValues };
+}
+
+function renderPieChart(mode) {
+  var canvas = document.getElementById('pieChart');
+  if (!canvas) return;
+  var d = getPieData(mode);
+  if (!d.labels.length) return;
+  if (pieChartInstance) {
+    pieChartInstance.destroy();
+  }
+  pieChartInstance = new Chart(canvas, {
     plugins: [ChartDataLabels],
     type: 'pie',
     data: {
-      labels: kd.pieLabels,
+      labels: d.labels,
       datasets: [{
-        data: kd.pieValues,
+        data: d.values,
         backgroundColor: [
           '#667eea','#764ba2','#f093fb','#f5576c','#4facfe',
           '#43e97b','#fa709a','#fee140','#30cfd0','#a18cd1'
@@ -498,6 +509,66 @@ if (document.getElementById('pieChart') && kd.pieLabels.length) {
       }
     }
   });
+}
+
+function renderPieLegend(mode) {
+  var container = document.getElementById('pieLegend');
+  var divider = document.getElementById('pieLegendDivider');
+  if (!container) return;
+  var d = getPieData(mode);
+  var total = d.values.reduce(function(a,b){return a+b;}, 0);
+  container.innerHTML = '';
+  var any = false;
+  d.labels.forEach(function(label, i) {
+    var value = d.values[i];
+    if (value <= 0) return;
+    any = true;
+    var pct = total > 0 ? Math.round(value / total * 100) : 0;
+
+    var row = document.createElement('div');
+    row.className = 'd-flex justify-content-between align-items-center py-1';
+    row.style.borderBottom = '1px solid #f5f5f5';
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', function() { showCategoryDetail(label, mode); });
+
+    var left = document.createElement('span');
+    left.style.fontSize = '13px';
+    left.textContent = label;
+
+    var right = document.createElement('div');
+    var amountSpan = document.createElement('span');
+    amountSpan.className = 'fw-bold';
+    amountSpan.style.fontSize = '13px';
+    amountSpan.textContent = '¥' + value.toLocaleString();
+    var pctSpan = document.createElement('span');
+    pctSpan.className = 'text-muted ms-2';
+    pctSpan.style.fontSize = '11px';
+    pctSpan.textContent = pct + '%';
+    var arrow = document.createElement('span');
+    arrow.className = 'text-muted ms-1';
+    arrow.style.fontSize = '13px';
+    arrow.textContent = '›';
+    right.appendChild(amountSpan);
+    right.appendChild(pctSpan);
+    right.appendChild(arrow);
+
+    row.appendChild(left);
+    row.appendChild(right);
+    container.appendChild(row);
+  });
+  divider.style.display = any ? '' : 'none';
+}
+
+function setPieMode(mode) {
+  document.getElementById('pieModeCategory').classList.toggle('active', mode === 'category');
+  document.getElementById('pieModeGroup').classList.toggle('active', mode === 'group');
+  document.getElementById('pieChartTitle').textContent = mode === 'group' ? '📊 グループ別支出' : '📊 カテゴリ別支出';
+  renderPieChart(mode);
+  renderPieLegend(mode);
+}
+
+if (document.getElementById('pieChart')) {
+  setPieMode('category');
 }
 
 // 月別棒グラフ
@@ -547,6 +618,12 @@ if ('serviceWorker' in navigator) {
 var calcTargetId = null;
 var calcExpr = '';
 var calcJustEq = false;
+
+document.getElementById('calcModal').addEventListener('shown.bs.modal', function() {
+  var backdrops = document.querySelectorAll('.modal-backdrop');
+  var last = backdrops[backdrops.length - 1];
+  if (last) last.classList.add('calc-backdrop');
+});
 
 function openCalc(inputId) {
   calcTargetId = inputId;
@@ -604,11 +681,12 @@ function calcConfirm() {
   bootstrap.Modal.getInstance(document.getElementById('calcModal')).hide();
 }
 
-function showCategoryDetail(cat) {
-  var list = kd.expenseDetails.filter(function(e) { return e.category === cat; });
+function showCategoryDetail(name, mode) {
+  var key = mode === 'group' ? 'group' : 'category';
+  var list = kd.expenseDetails.filter(function(e) { return e[key] === name; });
   list.sort(function(a, b) { return b.date.localeCompare(a.date); });
   var total = list.reduce(function(s, e) { return s + e.amount; }, 0);
-  document.getElementById('catDetailTitle').textContent = cat + '　合計 ¥' + total.toLocaleString();
+  document.getElementById('catDetailTitle').textContent = name + '　合計 ¥' + total.toLocaleString();
   var period = document.querySelector('select[name="month"]');
   document.getElementById('catDetailPeriod').textContent = period ? period.options[period.selectedIndex].text : '';
   var html = '';

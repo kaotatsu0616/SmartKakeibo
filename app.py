@@ -344,16 +344,17 @@ def home():
         params_e.append(month + "%")
 
     cur.execute(f"""
-        SELECT e.id, e.expense_date, e.amount, e.memo, e.category_id, c.category_name
+        SELECT e.id, e.expense_date, e.amount, e.memo, e.category_id, c.category_name, c.group_name
         FROM expenses e
         LEFT JOIN categories c ON e.category_id = c.id
         {where_e}
-        ORDER BY e.amount DESC, e.id DESC
+        ORDER BY e.expense_date DESC, e.id DESC
     """, params_e)
     expenses = cur.fetchall()
     expenses_for_json = [
         {'date': e['expense_date'], 'amount': safe_int(e['amount']),
-         'memo': e['memo'] or '', 'category': e['category_name'] or '未分類'}
+         'memo': e['memo'] or '', 'category': e['category_name'] or '未分類',
+         'group': e['group_name'] or '未分類'}
         for e in expenses
     ]
 
@@ -411,6 +412,21 @@ def home():
         chart_labels = ["データなし"]
         chart_values = [0]
 
+    cur.execute(f"""
+        SELECT c.group_name, SUM(e.amount) AS total
+        FROM expenses e
+        LEFT JOIN categories c ON e.category_id = c.id
+        {chart_where}
+        GROUP BY c.group_name
+        ORDER BY total DESC
+    """, chart_params)
+    chart_group = cur.fetchall()
+    chart_group_labels = [x["group_name"] or "未分類" for x in chart_group]
+    chart_group_values = [safe_int(x["total"]) for x in chart_group]
+    if not chart_group_labels:
+        chart_group_labels = ["データなし"]
+        chart_group_values = [0]
+
     cur.execute("""
         SELECT substr(expense_date,1,7) AS m, SUM(amount) AS total
         FROM expenses WHERE user_id = ? GROUP BY m
@@ -459,6 +475,8 @@ def home():
         selected_month=month,
         chart_labels=chart_labels,
         chart_values=chart_values,
+        chart_group_labels=chart_group_labels,
+        chart_group_values=chart_group_values,
         monthly_labels=monthly_labels,
         monthly_income=monthly_income,
         monthly_expense=monthly_expense,
