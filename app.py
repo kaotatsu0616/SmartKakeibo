@@ -348,7 +348,7 @@ def home():
         FROM expenses e
         LEFT JOIN categories c ON e.category_id = c.id
         {where_e}
-        ORDER BY e.expense_date DESC, e.id DESC
+        ORDER BY e.amount DESC, e.id DESC
     """, params_e)
     expenses = cur.fetchall()
     expenses_for_json = [
@@ -402,6 +402,7 @@ def home():
         LEFT JOIN categories c ON e.category_id = c.id
         {chart_where}
         GROUP BY c.category_name
+        ORDER BY total DESC
     """, chart_params)
     chart = cur.fetchall()
     chart_labels = [x["category_name"] or "未分類" for x in chart]
@@ -431,9 +432,12 @@ def home():
 
     cur.execute("""
         SELECT DISTINCT substr(expense_date,1,7) AS m
-        FROM expenses WHERE user_id = ? ORDER BY m DESC
-    """, (uid,))
-    months = [x["m"] for x in cur.fetchall() if x["m"]]
+        FROM expenses WHERE user_id = ?
+        UNION
+        SELECT DISTINCT substr(income_date,1,7) AS m
+        FROM income WHERE user_id = ?
+    """, (uid, uid))
+    months = sorted((x["m"] for x in cur.fetchall() if x["m"]), reverse=True)
     if today_ym not in months:
         months.insert(0, today_ym)
 
