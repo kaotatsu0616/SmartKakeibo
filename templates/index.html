@@ -218,7 +218,7 @@ body { background: #f5f6f8; padding-bottom: 70px; }
 
 <div class="card-ui">
   <h6 class="fw-bold">支出カテゴリ</h6>
-  <form method="POST" class="mb-3" onsubmit="prepareGroupName()">
+  <form method="POST" class="mb-3" onsubmit="prepareGroupName(); prepareCategoryName();">
     <input type="hidden" name="form_type" value="category_add">
     <label class="form-label small">グループ名</label>
     <select id="group_select" class="form-select mb-2" onchange="handleGroupSelect(this)">
@@ -230,7 +230,14 @@ body { background: #f5f6f8; padding-bottom: 70px; }
     <input type="text" id="group_name_new" class="form-control mb-2" placeholder="新しいグループ名（例：娯楽）" style="display:none;">
     <input type="hidden" id="group_name_hidden" name="group_name" value="{{ group_names[0] if group_names else '' }}">
     <label class="form-label small">カテゴリ名</label>
-    <input name="category_name" class="form-control mb-2" placeholder="カテゴリ名">
+    <select id="category_select" class="form-select mb-2" onchange="handleCategorySelect(this)">
+      <option value="__new__" selected>＋ 新しいカテゴリを追加...</option>
+      {% for cn in category_names %}
+      <option value="{{ cn }}">{{ cn }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" id="category_name_new" class="form-control mb-2" placeholder="新しいカテゴリ名（例：外食）">
+    <input type="hidden" id="category_name_hidden" name="category_name" value="">
     <button class="btn btn-primary w-100">追加</button>
   </form>
   <hr>
@@ -796,6 +803,28 @@ function prepareGroupName() {
   if (sel.value === '__new__') {
     document.getElementById('group_name_hidden').value =
       document.getElementById('group_name_new').value.trim();
+  }
+}
+
+function handleCategorySelect(sel) {
+  var newInput = document.getElementById('category_name_new');
+  var hidden = document.getElementById('category_name_hidden');
+  if (sel.value === '__new__') {
+    newInput.style.display = '';
+    newInput.focus();
+    hidden.value = '';
+  } else {
+    newInput.style.display = 'none';
+    hidden.value = sel.value;
+  }
+}
+
+function prepareCategoryName() {
+  var sel = document.getElementById('category_select');
+  if (!sel) return;
+  if (sel.value === '__new__') {
+    document.getElementById('category_name_hidden').value =
+      document.getElementById('category_name_new').value.trim();
   }
 }
 </script>

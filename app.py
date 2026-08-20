@@ -382,6 +382,7 @@ def home():
     categories = cur.fetchall()
 
     group_names = list(dict.fromkeys(c['group_name'] for c in categories if c['group_name']))
+    category_names = list(dict.fromkeys(c['category_name'] for c in categories if c['category_name']))
 
     cur.execute("SELECT * FROM income_categories WHERE user_id = ? ORDER BY category_name", (uid,))
     income_categories = cur.fetchall()
@@ -471,6 +472,7 @@ def home():
         incomes=incomes,
         categories=categories,
         group_names=group_names,
+        category_names=category_names,
         income_categories=income_categories,
         expense_total=expense_total,
         income_total=income_total,
