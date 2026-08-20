@@ -145,6 +145,15 @@ def init_db():
         except Exception:
             pass
 
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name "
+        "ON categories (user_id, category_name)"
+    )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_income_categories_user_name "
+        "ON income_categories (user_id, category_name)"
+    )
+
     conn.commit()
     conn.close()
 
@@ -312,28 +321,24 @@ def home():
         elif t == "category_add":
             cat_name = request.form.get("category_name", "").strip()
             if cat_name:
-                cur.execute(
-                    "SELECT id FROM categories WHERE category_name = ? AND user_id = ?",
-                    (cat_name, uid)
-                )
-                if not cur.fetchone():
+                try:
                     cur.execute(
                         "INSERT INTO categories (group_name, category_name, user_id) VALUES (?, ?, ?)",
                         (request.form.get("group_name"), cat_name, uid)
                     )
+                except sqlite3.IntegrityError:
+                    pass
 
         elif t == "income_category_add":
             cat_name = request.form.get("category_name", "").strip()
             if cat_name:
-                cur.execute(
-                    "SELECT id FROM income_categories WHERE category_name = ? AND user_id = ?",
-                    (cat_name, uid)
-                )
-                if not cur.fetchone():
+                try:
                     cur.execute(
                         "INSERT INTO income_categories (category_name, user_id) VALUES (?, ?)",
                         (cat_name, uid)
                     )
+                except sqlite3.IntegrityError:
+                    pass
 
         conn.commit()
 
@@ -572,6 +577,45 @@ def edit_income(id):
         id, session['user_id']
     ))
     conn.commit()
+    conn.close()
+    return redirect("/")
+
+
+@app.route("/edit_category/<int:id>", methods=["POST"])
+@login_required
+def edit_category(id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cat_name = request.form.get("category_name", "").strip()
+    group_name = request.form.get("group_name", "").strip()
+    if cat_name:
+        try:
+            cur.execute("""
+                UPDATE categories SET category_name=?, group_name=?
+                WHERE id=? AND user_id=?
+            """, (cat_name, group_name, id, session['user_id']))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+    conn.close()
+    return redirect("/")
+
+
+@app.route("/edit_income_category/<int:id>", methods=["POST"])
+@login_required
+def edit_income_category(id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cat_name = request.form.get("category_name", "").strip()
+    if cat_name:
+        try:
+            cur.execute("""
+                UPDATE income_categories SET category_name=?
+                WHERE id=? AND user_id=?
+            """, (cat_name, id, session['user_id']))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
     conn.close()
     return redirect("/")
 

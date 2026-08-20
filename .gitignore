@@ -1,4 +1,5 @@
 kakeibo.db
+kakeibo.db.bak*
 __pycache__/
 *.pyc
 .env

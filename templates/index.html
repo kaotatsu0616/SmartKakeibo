@@ -237,8 +237,15 @@ body { background: #f5f6f8; padding-bottom: 70px; }
   {% for c in categories %}
   <div class="d-flex justify-content-between align-items-center py-1">
     <span><small class="text-muted">{{ c.group_name }} &rsaquo;</small> {{ c.category_name }}</span>
-    <a href="/delete_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
-      onclick="return confirm('削除しますか？')">削除</a>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+        data-bs-toggle="modal" data-bs-target="#editCategoryModal"
+        data-id="{{ c.id }}"
+        data-group="{{ c.group_name }}"
+        data-name="{{ c.category_name }}">編集</button>
+      <a href="/delete_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
+        onclick="return confirm('削除しますか？')">削除</a>
+    </div>
   </div>
   {% endfor %}
 </div>
@@ -254,8 +261,14 @@ body { background: #f5f6f8; padding-bottom: 70px; }
   {% for c in income_categories %}
   <div class="d-flex justify-content-between align-items-center py-1">
     <span>{{ c.category_name }}</span>
-    <a href="/delete_income_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
-      onclick="return confirm('削除しますか？')">削除</a>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+        data-bs-toggle="modal" data-bs-target="#editIncomeCategoryModal"
+        data-id="{{ c.id }}"
+        data-name="{{ c.category_name }}">編集</button>
+      <a href="/delete_income_category/{{ c.id }}" class="btn btn-sm btn-outline-danger"
+        onclick="return confirm('削除しますか？')">削除</a>
+    </div>
   </div>
   {% endfor %}
 </div>
@@ -394,6 +407,52 @@ body { background: #f5f6f8; padding-bottom: 70px; }
   </div>
 </div>
 
+<!-- ========== 支出カテゴリ編集モーダル ========== -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">支出カテゴリを編集</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editCategoryForm" method="POST">
+        <div class="modal-body">
+          <label class="form-label small">グループ名</label>
+          <input type="text" id="ec_group" name="group_name" class="form-control mb-2">
+          <label class="form-label small">カテゴリ名</label>
+          <input type="text" id="ec_name" name="category_name" class="form-control">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 収入カテゴリ編集モーダル ========== -->
+<div class="modal fade" id="editIncomeCategoryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">収入カテゴリを編集</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editIncomeCategoryForm" method="POST">
+        <div class="modal-body">
+          <label class="form-label small">カテゴリ名</label>
+          <input type="text" id="eic_name" name="category_name" class="form-control">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn btn-success">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 
 <!-- ========== JavaScript ========== -->
 <script>
@@ -420,6 +479,21 @@ document.getElementById('editIncomeModal').addEventListener('show.bs.modal', fun
   document.getElementById('ei_amount').value  = btn.dataset.amount;
   document.getElementById('ei_cat').value     = btn.dataset.category;
   document.getElementById('ei_memo').value    = btn.dataset.memo;
+});
+
+// 編集モーダル（支出カテゴリ）
+document.getElementById('editCategoryModal').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('editCategoryForm').action = `/edit_category/${btn.dataset.id}`;
+  document.getElementById('ec_group').value = btn.dataset.group;
+  document.getElementById('ec_name').value  = btn.dataset.name;
+});
+
+// 編集モーダル（収入カテゴリ）
+document.getElementById('editIncomeCategoryModal').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('editIncomeCategoryForm').action = `/edit_income_category/${btn.dataset.id}`;
+  document.getElementById('eic_name').value = btn.dataset.name;
 });
 
 </script>
