@@ -471,6 +471,7 @@ function show(id) {
 // 編集モーダル（支出）
 document.getElementById('editExpenseModal').addEventListener('show.bs.modal', function(e) {
   const btn = e.relatedTarget;
+  if (!btn) return;  // カテゴリ詳細から開いた場合は呼び出し側で値を設定済み
   document.getElementById('editExpenseForm').action = `/edit_expense/${btn.dataset.id}`;
   document.getElementById('ee_date').value    = btn.dataset.date;
   document.getElementById('ee_amount').value  = btn.dataset.amount;
@@ -771,17 +772,43 @@ function showCategoryDetail(name, mode) {
   var period = document.querySelector('select[name="month"]');
   document.getElementById('catDetailPeriod').textContent = period ? period.options[period.selectedIndex].text : '';
   var html = '';
-  list.forEach(function(e) {
-    html += '<div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-bottom:1px solid #f0f0f0;">';
-    html += '<div><div style="font-size:13px;color:#888;">' + e.date + '</div>';
-    if (e.memo) html += '<div style="font-size:12px;color:#aaa;">' + e.memo + '</div>';
+  list.forEach(function(e, i) {
+    html += '<div class="d-flex justify-content-between align-items-center px-3 py-2 cat-detail-row" data-idx="' + i + '" style="border-bottom:1px solid #f0f0f0; cursor:pointer;">';
+    html += '<div><div style="font-size:13px;color:#888;">' + e.date;
+    if (mode === 'group') html += ' <span class="badge-cat">' + escapeHtml(e.category) + '</span>';
     html += '</div>';
-    html += '<span class="fw-bold">¥' + e.amount.toLocaleString() + '</span>';
+    if (e.memo) html += '<div style="font-size:12px;color:#aaa;">' + escapeHtml(e.memo) + '</div>';
+    html += '</div>';
+    html += '<span class="fw-bold">¥' + e.amount.toLocaleString() + ' <span style="color:#ccc;">›</span></span>';
     html += '</div>';
   });
   if (!html) html = '<div class="text-center text-muted p-3" style="font-size:13px;">データがありません</div>';
-  document.getElementById('catDetailBody').innerHTML = html;
-  new bootstrap.Modal(document.getElementById('categoryDetailModal')).show();
+  var body = document.getElementById('catDetailBody');
+  body.innerHTML = html;
+  body.querySelectorAll('.cat-detail-row').forEach(function(row) {
+    row.addEventListener('click', function() { editExpenseFromDetail(list[row.dataset.idx]); });
+  });
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('categoryDetailModal')).show();
+}
+
+function editExpenseFromDetail(e) {
+  document.getElementById('editExpenseForm').action = '/edit_expense/' + e.id;
+  document.getElementById('ee_date').value   = e.date;
+  document.getElementById('ee_amount').value = e.amount;
+  document.getElementById('ee_cat').value    = e.category_id == null ? '' : e.category_id;
+  document.getElementById('ee_memo').value   = e.memo;
+  var detailEl = document.getElementById('categoryDetailModal');
+  // 詳細モーダルが閉じ切ってから編集モーダルを開く（背景の重なりを防ぐ）
+  detailEl.addEventListener('hidden.bs.modal', function() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editExpenseModal')).show();
+  }, { once: true });
+  bootstrap.Modal.getInstance(detailEl).hide();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 function handleGroupSelect(sel) {

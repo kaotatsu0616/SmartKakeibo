@@ -357,7 +357,8 @@ def home():
     """, params_e)
     expenses = cur.fetchall()
     expenses_for_json = [
-        {'date': e['expense_date'], 'amount': safe_int(e['amount']),
+        {'id': e['id'], 'category_id': e['category_id'],
+         'date': e['expense_date'], 'amount': safe_int(e['amount']),
          'memo': e['memo'] or '', 'category': e['category_name'] or '未分類',
          'group': e['group_name'] or '未分類'}
         for e in expenses
